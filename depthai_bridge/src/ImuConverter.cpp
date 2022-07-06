@@ -1,6 +1,6 @@
 
 #include <depthai_bridge/ImuConverter.hpp>
-
+#include <tf/transform_datatypes.h>
 namespace dai {
 
 namespace ros {
@@ -23,7 +23,7 @@ void ImuConverter::FillImuData_LinearInterpolation(std::vector<IMUPacket>& imuPa
     // int accelSequenceNum = -1, gyroSequenceNum = -1;
     static std::deque<dai::IMUReportAccelerometer> accelHist;
     static std::deque<dai::IMUReportGyroscope> gyroHist;
-    // std::deque<dai::IMUReportRotationVectorWAcc> rotationVecHist;
+    static std::deque<dai::IMUReportRotationVectorWAcc> rotationVecHist;
 
     for(int i = 0; i < imuPackets.size(); ++i) {
         if(accelHist.size() == 0) {
@@ -35,7 +35,13 @@ void ImuConverter::FillImuData_LinearInterpolation(std::vector<IMUPacket>& imuPa
         if(gyroHist.size() == 0) {
             gyroHist.push_back(imuPackets[i].gyroscope);
         } else if(gyroHist.back().sequence != imuPackets[i].gyroscope.sequence) {
-            gyroHist.push_back(imuPackets[i].gyroscope);
+        	gyroHist.push_back(imuPackets[i].gyroscope);
+        }
+
+        if(rotationVecHist.size() == 0) {
+        	rotationVecHist.push_back(imuPackets[i].rotationVector);
+        } else if(rotationVecHist.back().sequence != imuPackets[i].rotationVector.sequence) {
+        	rotationVecHist.push_back(imuPackets[i].rotationVector);
         }
 
         if(_syncMode == ImuSyncMethod::LINEAR_INTERPOLATE_ACCEL) {
@@ -44,6 +50,7 @@ void ImuConverter::FillImuData_LinearInterpolation(std::vector<IMUPacket>& imuPa
             } else {
                 dai::IMUReportAccelerometer accel0, accel1;
                 dai::IMUReportGyroscope currGyro;
+                dai::IMUReportRotationVectorWAcc currRot;
                 accel0.sequence = -1;
                 DEPTHAI_ROS_DEBUG_STREAM("IMU INTERPOLATION: ", " Interpolating LINEAR_INTERPOLATE_ACCEL mode " << std::endl);
                 while(accelHist.size()) {
@@ -64,8 +71,14 @@ void ImuConverter::FillImuData_LinearInterpolation(std::vector<IMUPacket>& imuPa
                         if(!gyroHist.size()) {
                             DEPTHAI_ROS_WARN_STREAM("IMU INTERPOLATION: ", "Gyro data not found. Dropping accel data points");
                         }
-                        while(gyroHist.size()) {
+                        if(!rotationVecHist.size()){
+                        	DEPTHAI_ROS_WARN_STREAM("IMU INTERPOLATION: ", "Rotation data not found. Dropping accel data points");
+                        }
+
+                        while(gyroHist.size() && rotationVecHist.size()) {
                             currGyro = gyroHist.front();
+                            currRot = rotationVecHist.front();
+
 
                             DEPTHAI_ROS_DEBUG_STREAM(
                                 "IMU INTERPOLATION: ",
@@ -83,8 +96,9 @@ void ImuConverter::FillImuData_LinearInterpolation(std::vector<IMUPacket>& imuPa
                                 std::chrono::duration<double, std::milli> diff = currGyro.timestamp.get() - accel0.timestamp.get();
                                 const double alpha = diff.count() / dt;
                                 dai::IMUReportAccelerometer interpAccel = lerpImu(accel0, accel1, alpha);
-                                imuMsgs.push_back(CreateUnitMessage(interpAccel, currGyro));
+                                imuMsgs.push_back(CreateUnitMessage(interpAccel, currGyro, currRot));
                                 gyroHist.pop_front();
+                                rotationVecHist.pop_front();
                             } else if(currGyro.timestamp.get() > accel1.timestamp.get()) {
                                 accel0 = accel1;
                                 if(accelHist.size()) {
@@ -97,6 +111,7 @@ void ImuConverter::FillImuData_LinearInterpolation(std::vector<IMUPacket>& imuPa
                                 }
                             } else {
                                 gyroHist.pop_front();
+                                rotationVecHist.pop_front();
                                 DEPTHAI_ROS_DEBUG_STREAM("IMU INTERPOLATION: ", "Droppinh GYRO with old timestamps which are below accel10 \n");
                             }
                         }
@@ -114,6 +129,7 @@ void ImuConverter::FillImuData_LinearInterpolation(std::vector<IMUPacket>& imuPa
             } else {
                 dai::IMUReportGyroscope gyro0, gyro1;
                 dai::IMUReportAccelerometer currAccel;
+                dai::IMUReportRotationVectorWAcc currRot;
                 gyro0.sequence = -1;
                 DEPTHAI_ROS_DEBUG_STREAM("IMU INTERPOLATION: ", " Interpolating LINEAR_INTERPOLATE_GYRO mode " << std::endl);
                 while(gyroHist.size()) {
@@ -130,8 +146,13 @@ void ImuConverter::FillImuData_LinearInterpolation(std::vector<IMUPacket>& imuPa
                         if(!accelHist.size()) {
                             DEPTHAI_ROS_WARN_STREAM("IMU INTERPOLATION: ", "Accel data not found. Dropping data");
                         }
+                        if(!rotationVecHist.size()){
+                        	DEPTHAI_ROS_WARN_STREAM("IMU INTERPOLATION: ", "Rotation data not found. Dropping accel data points");
+                        }
                         while(accelHist.size()) {
                             currAccel = accelHist.front();
+                            currRot = rotationVecHist.front();
+
                             DEPTHAI_ROS_DEBUG_STREAM("IMU INTERPOLATION: ",
                                                      "gyro 0: Seq => " << gyro0.sequence << std::endl
                                                                        << "       timeStamp => " << (gyro0.timestamp.get() - _steadyBaseTime).count()
@@ -149,8 +170,9 @@ void ImuConverter::FillImuData_LinearInterpolation(std::vector<IMUPacket>& imuPa
                                 std::chrono::duration<double, std::milli> diff = currAccel.timestamp.get() - gyro0.timestamp.get();
                                 const double alpha = diff.count() / dt;
                                 dai::IMUReportGyroscope interpGyro = lerpImu(gyro0, gyro1, alpha);
-                                imuMsgs.push_back(CreateUnitMessage(currAccel, interpGyro));
+                                imuMsgs.push_back(CreateUnitMessage(currAccel, interpGyro, currRot));
                                 accelHist.pop_front();
+                                rotationVecHist.pop_front();
                             } else if(currAccel.timestamp.get() > gyro1.timestamp.get()) {
                                 gyro0 = gyro1;
                                 if(gyroHist.size()) {
@@ -163,6 +185,7 @@ void ImuConverter::FillImuData_LinearInterpolation(std::vector<IMUPacket>& imuPa
                                 }
                             } else {
                                 accelHist.pop_front();
+                                rotationVecHist.pop_front();
                                 DEPTHAI_ROS_DEBUG_STREAM("IMU INTERPOLATION: ", "Droppinh ACCEL with old timestamps which are below accel10 \n");
                             }
                         }
@@ -175,7 +198,18 @@ void ImuConverter::FillImuData_LinearInterpolation(std::vector<IMUPacket>& imuPa
     }
 }
 
-ImuMsgs::Imu ImuConverter::CreateUnitMessage(dai::IMUReportAccelerometer accel, dai::IMUReportGyroscope gyro) {
+double ImuConverter::toDegrees(double ang)
+{
+	return 180.0 * (ang / M_PI);
+}
+
+double ImuConverter::toRadian(double ang)
+{
+	return M_PI * (ang / 180.0);
+}
+
+ImuMsgs::Imu ImuConverter::CreateUnitMessage(dai::IMUReportAccelerometer accel, dai::IMUReportGyroscope gyro, dai::IMUReportRotationVectorWAcc rotation)
+{
     ImuMsgs::Imu interpMsg;
     interpMsg.linear_acceleration.x = accel.x;
     interpMsg.linear_acceleration.y = accel.y;
@@ -185,10 +219,18 @@ ImuMsgs::Imu ImuConverter::CreateUnitMessage(dai::IMUReportAccelerometer accel, 
     interpMsg.angular_velocity.y = gyro.y;
     interpMsg.angular_velocity.z = gyro.z;
 
-    interpMsg.orientation.x = 0.0;
-    interpMsg.orientation.y = 0.0;
-    interpMsg.orientation.z = 0.0;
-    interpMsg.orientation.w = 1.0;
+
+    //transform the imu to oak-FLU
+    tf::Quaternion q1(rotation.i, rotation.j, rotation.k, rotation.real);
+    tf::Quaternion q2(0.0, -0.707, 0.0, 0.707);
+    tf::Quaternion q3;
+    q3 = q1*q2;
+    q3.normalize();
+
+    interpMsg.orientation.x = q3.x();
+    interpMsg.orientation.y = q3.y();
+    interpMsg.orientation.z = q3.z();
+    interpMsg.orientation.w = q3.w();
 
     interpMsg.orientation_covariance = {-1.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0};
     interpMsg.linear_acceleration_covariance = {_linear_accel_cov, 0.0, 0.0, 0.0, _linear_accel_cov, 0.0, 0.0, 0.0, _linear_accel_cov};
@@ -218,7 +260,12 @@ void ImuConverter::toRosMsg(std::shared_ptr<dai::IMUData> inData, std::deque<Imu
         for(int i = 0; i < inData->packets.size(); ++i) {
             auto accel = inData->packets[i].acceleroMeter;
             auto gyro = inData->packets[i].gyroscope;
-            outImuMsgs.push_back(CreateUnitMessage(accel, gyro));
+            auto rotation = inData->packets[i].rotationVector;
+
+            //printf("[%f, %f, %f, %f]\n", rotation.i, rotation.j, rotation.k, rotation.real);
+            //printf("[%f, %f, %f]\n", accel.x, accel.y, accel.z);
+
+            outImuMsgs.push_back(CreateUnitMessage(accel, gyro, rotation));
         }
     }
 }

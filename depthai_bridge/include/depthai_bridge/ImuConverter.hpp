@@ -43,7 +43,11 @@ class ImuConverter {
 
    private:
     void FillImuData_LinearInterpolation(std::vector<IMUPacket>& imuPackets, std::deque<ImuMsgs::Imu>& imuMsgs);
-    ImuMsgs::Imu CreateUnitMessage(dai::IMUReportAccelerometer accel, dai::IMUReportGyroscope gyro);
+    ImuMsgs::Imu CreateUnitMessage(dai::IMUReportAccelerometer accel, dai::IMUReportGyroscope gyro, dai::IMUReportRotationVectorWAcc rotation);
+
+    double toDegrees(double ang);
+
+    double toRadian(double ang);
 
     uint32_t _sequenceNum;
     double _linear_accel_cov, _angular_velocity_cov;

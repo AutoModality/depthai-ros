@@ -16,13 +16,20 @@ execute_process (
   OUTPUT_VARIABLE ubuntu_version
 )
 
-set(opencv_version 4)
-find_package(OpenCV ${opencv_version} QUIET COMPONENTS imgproc highgui)
-if(NOT OpenCV_FOUND)
-  message(STATUS "----------------Did not find OpenCV 4, trying OpenCV 3--------------")
-  set(opencv_version 3)
-  find_package(OpenCV ${opencv_version} REQUIRED COMPONENTS imgproc highgui)
+find_package(PCL REQUIRED)
+
+if(PCL_FOUND)
+	link_directories(${PCL_LIBRARY_DIRS})
+	add_definitions(${PCL_DEFINITIONS})
+	
+	include_directories(
+	    include
+	    ${ament_INCLUDE_DIRS}
+	    ${PCL_INCLUDE_DIRS}
+  	)
 endif()
+
+find_package(OpenCV REQUIRED EXACT 3.3.1)
 
 
 # message(STATUS ${depthai_VERSION})
@@ -63,6 +70,7 @@ if ( ament_cmake_FOUND )
         sensor_msgs
         stereo_msgs
         std_msgs
+        am_utils
         vision_msgs
       )
 
@@ -147,6 +155,7 @@ elseif( CATKIN_DEVEL_PREFIX OR CATKIN_BUILD_BINARY_PACKAGE )
       stereo_msgs
       std_msgs
       vision_msgs
+      am_utils
     )
     find_package(Boost REQUIRED)
     find_package(depthai CONFIG REQUIRED)

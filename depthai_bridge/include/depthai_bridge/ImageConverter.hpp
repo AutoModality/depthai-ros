@@ -45,8 +45,8 @@ using TimePoint = std::chrono::time_point<std::chrono::steady_clock, std::chrono
 class ImageConverter {
    public:
     // ImageConverter() = default;
-    ImageConverter(const std::string frameName, bool interleaved);
-    ImageConverter(bool interleaved);
+    ImageConverter(const std::string frameName, bool interleaved, bool isDepth = false);
+    ImageConverter(bool interleaved, bool isDepth = false);
 
     void toRosMsg(std::shared_ptr<dai::ImgFrame> inData, std::deque<ImageMsgs::Image>& outImageMsgs);
     ImagePtr toRosMsgPtr(std::shared_ptr<dai::ImgFrame> inData);
@@ -65,12 +65,17 @@ class ImageConverter {
                                                   Point2f topLeftPixelId = Point2f(),
                                                   Point2f bottomRightPixelId = Point2f());
 
+    //to see if this class is set for a depth images
+    bool isDepth();
+
    private:
     static std::unordered_map<dai::RawImgFrame::Type, std::string> encodingEnumMap;
     static std::unordered_map<dai::RawImgFrame::Type, std::string> planarEncodingEnumMap;
 
     // dai::RawImgFrame::Type _srcType;
     bool _daiInterleaved;
+
+    bool is_depth_ {false};
     // bool c
     const std::string _frameName = "";
     void planarToInterleaved(const std::vector<uint8_t>& srcData, std::vector<uint8_t>& destData, int w, int h, int numPlanes, int bpp);

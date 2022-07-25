@@ -14,6 +14,7 @@
 
   <build_depend condition="$ROS_VERSION == 1">message_generation</build_depend>
   <exec_depend condition="$ROS_VERSION == 1">message_runtime</exec_depend>
+
   
   <depend condition="$ROS_VERSION == 2">builtin_interfaces</depend>
   <depend condition="$ROS_VERSION == 2">rclcpp</depend>
@@ -23,6 +24,7 @@
   <depend>std_msgs</depend>
   <depend>geometry_msgs</depend>
   <depend>vision_msgs</depend>
+  <depend>am_utils</depend>
   <member_of_group condition="$ROS_VERSION == 2">rosidl_interface_packages</member_of_group>
   
   <export>

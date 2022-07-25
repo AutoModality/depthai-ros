@@ -21,9 +21,14 @@ std::unordered_map<dai::RawImgFrame::Type, std::string> ImageConverter::planarEn
     {dai::RawImgFrame::Type::NV12, "rgb8"},
     {dai::RawImgFrame::Type::YUV420p, "rgb8"}};
 
-ImageConverter::ImageConverter(bool interleaved) : _daiInterleaved(interleaved) {}
+ImageConverter::ImageConverter(bool interleaved, bool isDepth) : _daiInterleaved(interleaved), is_depth_(isDepth){}
 
-ImageConverter::ImageConverter(const std::string frameName, bool interleaved) : _frameName(frameName), _daiInterleaved(interleaved) {}
+ImageConverter::ImageConverter(const std::string frameName, bool interleaved, bool isDepth) : _frameName(frameName), _daiInterleaved(interleaved), is_depth_(isDepth) {}
+
+bool ImageConverter::isDepth()
+{
+	return is_depth_;
+}
 
 void ImageConverter::toRosMsg(std::shared_ptr<dai::ImgFrame> inData, std::deque<ImageMsgs::Image>& outImageMsgs) {
     auto tstamp = inData->getTimestamp();
@@ -46,7 +51,6 @@ void ImageConverter::toRosMsg(std::shared_ptr<dai::ImgFrame> inData, std::deque<
     header.stamp = rosStamp;
     header.seq = inData->getSequenceNum();
 #endif
-
     if(planarEncodingEnumMap.find(inData->getType()) != planarEncodingEnumMap.end()) {
         // cv::Mat inImg = inData->getCvFrame();
         cv::Mat mat, output;
@@ -103,9 +107,20 @@ void ImageConverter::toRosMsg(std::shared_ptr<dai::ImgFrame> inData, std::deque<
                 output = mat.clone();
                 break;
         }
+
+
         cv_bridge::CvImage(header, sensor_msgs::image_encodings::BGR8, output).toImageMsg(outImageMsg);
 
     } else if(encodingEnumMap.find(inData->getType()) != encodingEnumMap.end()) {
+    	ROS_INFO("is_depth_: %s", is_depth_ ? "True" : "False");
+
+    	if(is_depth_)
+    	{
+    		static int counter = 0;
+    		ROS_INFO("this is for depth message: %d", counter);
+    		counter++;
+    	}
+
         // copying the data to ros msg
         outImageMsg.header = header;
         std::string temp_str(encodingEnumMap[inData->getType()]);

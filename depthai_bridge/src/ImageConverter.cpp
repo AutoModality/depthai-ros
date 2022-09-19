@@ -112,7 +112,7 @@ void ImageConverter::toRosMsg(std::shared_ptr<dai::ImgFrame> inData, std::deque<
         cv_bridge::CvImage(header, sensor_msgs::image_encodings::BGR8, output).toImageMsg(outImageMsg);
 
     } else if(encodingEnumMap.find(inData->getType()) != encodingEnumMap.end()) {
-    	ROS_INFO("is_depth_: %s", is_depth_ ? "True" : "False");
+    	//ROS_INFO("is_depth_: %s", is_depth_ ? "True" : "False");
 
     	if(is_depth_)
     	{
